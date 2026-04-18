@@ -1,0 +1,17 @@
+user_type,game_genre,play_time,device,region,target
+casual,rpg,low,mobile,asia,0
+casual,rpg,high,pc,europe,1
+hardcore,shooter,high,pc,asia,1
+hardcore,shooter,low,console,us,0
+casual,puzzle,low,mobile,india,0
+casual,puzzle,high,pc,india,1
+hardcore,racing,high,console,europe,1
+hardcore,racing,low,mobile,asia,0
+casual,rpg,high,console,us,1
+casual,puzzle,low,mobile,europe,0
+hardcore,shooter,high,pc,india,1
+hardcore,racing,low,console,us,0
+casual,puzzle,high,pc,asia,1
+casual,rpg,low,mobile,india,0
+hardcore,shooter,low,console,europe,0
+hardcore,racing,high,pc,india,1

@@ -170,10 +170,15 @@ export default function App() {
   const generalColumns = analysisData ? Object.entries(analysisData.with_sensitive.bias_report).filter(([, r]) => !r.type.includes('Sensitive')) : [];
   const topInsights = analysisData ? Object.entries(analysisData.with_sensitive.bias_report).sort(([, a], [, b]) => b.bias_score - a.bias_score).slice(0, 2) : [];
 
+  const lrData = analysisData?.models?.logistic_regression;
+  const rfData = analysisData?.models?.random_forest;
+  const mitData = analysisData?.models?.mitigated;
+  const retData = analysisData?.models?.retrained;
+
   const extraModels = [
-    { name: "Logistic Regression", score: (parseFloat(score1) * 1.15).toFixed(2), feature: analysisData?.with_sensitive?.most_biased_feature || "Gender" },
-    { name: "Random Forest", score: (parseFloat(score1) * 0.72).toFixed(2), feature: "Income Proxy" },
-    { name: "Retrained Model", score: "0.04", feature: "Optimized Weighting" },
+    { name: "Logistic Regression", score: lrData ? lrData.avg_bias.toFixed(2) : "—", feature: lrData?.most_biased_feature || "N/A" },
+    { name: "Random Forest", score: rfData ? rfData.avg_bias.toFixed(2) : "—", feature: rfData?.most_biased_feature || "N/A" },
+    { name: "Retrained Model", score: retData ? retData.avg_bias.toFixed(2) : "—", feature: retData?.optimization || retData?.most_biased_feature || "N/A" },
   ];
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -526,12 +531,16 @@ export default function App() {
                   <div className="space-y-4">
                     <div>
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-1">Bias Score</p>
-                      <h4 className="text-5xl font-black text-cyan-600" style={{ fontFamily: 'Sora' }}>{score2}</h4>
+                      <h4 className="text-5xl font-black text-cyan-600" style={{ fontFamily: 'Sora' }}>{mitData ? mitData.avg_bias.toFixed(2) : score2}</h4>
                     </div>
                     <div className="pt-4 border-t border-slate-50">
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-2">Bias Features (Avg)</p>
                       <div className="flex flex-wrap gap-2">
-                        {analysisData ? Object.keys(analysisData.without_sensitive.bias_report).slice(0, 3).map(f => (
+                        {mitData ? Object.keys(mitData.bias_report).slice(0, 3).map(f => (
+                          <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
+                            {f.replace('_', ' ')}: {mitData.bias_report[f].bias_score.toFixed(2)}
+                          </span>
+                        )) : analysisData ? Object.keys(analysisData.without_sensitive.bias_report).slice(0, 3).map(f => (
                           <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
                             {f.replace('_', ' ')}: {analysisData.without_sensitive.bias_report[f].bias_score.toFixed(2)}
                           </span>
@@ -629,7 +638,7 @@ export default function App() {
                     </div>
                   ) : (
                     <p className="text-slate-600 font-medium leading-relaxed" style={{ fontFamily: 'Manrope' }}>
-                      <span className="text-orange-600 font-bold">Gender</span> shows highest correlation. Immediate preprocessing required.
+                      Upload a dataset to view detected bias insights.
                     </p>
                   )}
                 </div>
