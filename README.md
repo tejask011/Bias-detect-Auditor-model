@@ -3,6 +3,10 @@
 ## Overview
 The Bias-Detect Auditor is a full-stack platform developed to identify, analyze, and mitigate algorithmic bias within machine learning datasets. The system provides an automated pipeline that processes raw data, audits it for fairness across various protected attributes, and implements corrective strategies to produce more equitable models.
 
+
+<img width="1886" height="1049" alt="image" src="https://github.com/user-attachments/assets/d03226f2-389d-4ba0-a8c0-549ea8b38699" />
+
+
 ---
 
 ## System Architecture and Data Flow
