@@ -1,54 +1,114 @@
 import pandas as pd
 
-# 🔥 Define sensitive columns (expand anytime)
-SENSITIVE_COLS = ["gender", "caste", "age"]
+# 🔥 Define sensitive columns
+SENSITIVE_COLS = ["gender", "caste", "age", "race", "ethnicity", "religion"]
 
 
-# ✅ Select only valid categorical columns
+# ─────────────────────────────────────────────────────────────────────────────
+# FAIRNESS CALCULATION METRICS
+# ─────────────────────────────────────────────────────────────────────────────
+def demographic_parity(df, pred, col):
+    try:
+        df = df.copy()
+        df["prediction"] = pred
+        rates = df.groupby(col)["prediction"].mean()
+        return float(rates.max() - rates.min())
+    except:
+        return 0
+
+
+def equal_opportunity(df, pred, col):
+    try:
+        df = df.copy()
+        df["prediction"] = pred
+
+        # Try to find target in df or assume median split target was used
+        target_col = "target" if "target" in df.columns else None
+        if not target_col:
+            return 0
+
+        subset = df[df[target_col] == 1]
+        if subset.empty:
+            return 0
+
+        rates = subset.groupby(col)["prediction"].mean()
+        return float(rates.max() - rates.min())
+    except:
+        return 0
+
+
+def disparate_impact(df, pred, col):
+    try:
+        df = df.copy()
+        df["prediction"] = pred
+        rates = df.groupby(col)["prediction"].mean()
+        return float(rates.min() / (rates.max() + 1e-6))
+    except:
+        return 1.0
+
+
+# ==============================
+# CATEGORICAL COLUMNS
+# ==============================
 def get_categorical_columns(df):
-    exclude_cols = ["prediction", "target"]
-
-    categorical_cols = []
-
+    """Identify columns suitable for bias auditing."""
+    exclude_cols = ["prediction", "target", "date", "time", "id", "userid"]
+    candidates = []
     for col in df.columns:
-        if col in exclude_cols:
+        col_lower = col.lower()
+        # Skip excluded patterns
+        if any(ex in col_lower for ex in exclude_cols):
             continue
+        
+        # Suitable for auditing if it's categorical-like
+        n_unique = df[col].nunique()
+        if 1 < n_unique <= 30: # Increased limit to 30 for more "random" CSVs
+            candidates.append(col)
+    return candidates
 
-        if df[col].nunique() <= 10:
-            categorical_cols.append(col)
 
-    return categorical_cols
-
-
-# 🔥 Bias Type (NEW)
+# ==============================
+# LABELS / TYPES
+# ==============================
 def get_bias_type(col):
-    if col.lower() in SENSITIVE_COLS:
-        return "Sensitive Bias 🚨"
-    return "General Pattern ⚠️"
+    col_lower = col.lower()
+    for s in SENSITIVE_COLS:
+        if s in col_lower:
+            return "Sensitive Bias"
+    return "General Pattern"
 
 
-# 🔥 Severity Level (NEW)
 def get_severity(score):
     if score < 0.1:
-        return "Low 🟢"
+        return "Low"
     elif score < 0.3:
-        return "Medium 🟡"
-    else:
-        return "High 🔴"
+        return "Medium"
+    return "High"
 
 
-# 🔥 SMART INSIGHT FUNCTION
+def bias_label(score):
+    if score < 0.1:
+        return "Fair"
+    elif score < 0.2:
+        return "Moderate"
+    return "Highly Biased"
+
+
 def get_bias_insight(feature, group_rates, bias_score):
-    if bias_score == 0:
-        return f"No bias detected in '{feature}'"
+    if not group_rates or bias_score == 0:
+        return f"No significant bias detected in '{feature}'"
 
-    max_group = max(group_rates, key=group_rates.get)
-    min_group = min(group_rates, key=group_rates.get)
+    try:
+        max_group = max(group_rates, key=group_rates.get)
+        min_group = min(group_rates, key=group_rates.get)
+        return f"{feature} is biased: '{max_group}' is favored over '{min_group}'"
+    except:
+        return f"Bias detected in {feature}"
 
-    return f"{feature} is biased: '{max_group}' is favored over '{min_group}'"
 
-
-# ✅ Main bias detection
+# ==============================
+# MAIN BIAS FUNCTION
+# ==============================
 def detect_bias_all_columns(df, predictions):
     df = df.copy()
     df["prediction"] = predictions
@@ -57,44 +117,56 @@ def detect_bias_all_columns(df, predictions):
     bias_report = {}
 
     for col in categorical_cols:
-        groups = df[col].dropna().unique()
+        try:
+            groups = df[col].dropna().unique()
 
-        if len(groups) < 2:
-            continue
-
-        group_rates = {}
-
-        for group in groups:
-            group_data = df[df[col] == group]
-
-            if len(group_data) == 0:
+            if len(groups) < 2:
                 continue
 
-            positive_rate = (group_data["prediction"] == 1).mean()
-            group_rates[str(group)] = round(float(positive_rate), 3)
+            group_rates = {}
 
-        values = list(group_rates.values())
-        if len(values) < 2:
+            for group in groups:
+                group_data = df[df[col] == group]
+                if len(group_data) == 0:
+                    continue
+
+                # Support binary predictions or continuous if they were passed
+                pred_vals = group_data["prediction"]
+                positive_rate = pred_vals.mean() if pd.api.types.is_numeric_dtype(pred_vals) else (pred_vals == pred_vals.mode()[0]).mean()
+                
+                group_rates[str(group)] = round(float(positive_rate), 3)
+
+            values = list(group_rates.values())
+            if len(values) < 2:
+                continue
+
+            bias_score = round(max(values) - min(values), 3)
+
+            # 🔥 FAIRNESS METRICS
+            dp = demographic_parity(df, df["prediction"], col)
+            eo = equal_opportunity(df, df["prediction"], col)
+            di = disparate_impact(df, df["prediction"], col)
+
+            bias_report[col] = {
+                "group_rates": group_rates,
+                "bias_score": bias_score,
+                "label": bias_label(bias_score),
+                "insight": get_bias_insight(col, group_rates, bias_score),
+                "demographic_parity": round(dp, 3),
+                "equal_opportunity": round(eo, 3),
+                "disparate_impact": round(di, 3),
+                "type": get_bias_type(col),
+                "severity": get_severity(bias_score)
+            }
+        except:
             continue
-
-        bias_score = round(max(values) - min(values), 3)
-
-        bias_report[col] = {
-            "group_rates": group_rates,
-            "bias_score": bias_score,
-            "label": bias_label(bias_score),
-            "insight": get_bias_insight(col, group_rates, bias_score),
-
-            # 🔥 NEW FIELDS
-            "type": get_bias_type(col),
-            "severity": get_severity(bias_score)
-        }
 
     return bias_report
 
 
-# ✅ Find most biased feature
 def most_biased_feature(bias_report):
+    if not bias_report:
+        return None, 0
     max_bias = 0
     worst_feature = None
 
@@ -104,13 +176,3 @@ def most_biased_feature(bias_report):
             worst_feature = feature
 
     return worst_feature, round(max_bias, 3)
-
-
-# ✅ Label bias level
-def bias_label(score):
-    if score < 0.1:
-        return "Fair ✅"
-    elif score < 0.2:
-        return "Moderate ⚠️"
-    else:
-        return "Highly Biased ❌"

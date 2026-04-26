@@ -4,7 +4,17 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Upload, LogOut, AlertTriangle, CheckCircle2, TrendingUp, Shield, Zap, Eye, Activity, Info, X, FileText, Lock, Unlock, CircleAlert, CircleCheck, CircleMinus, ShieldAlert, TriangleAlert } from 'lucide-react';
 import axios from 'axios';
 
+const safeNum = (val, digits = 2) => {
+  if (val === undefined || val === null || isNaN(val)) return "0.00";
+  return Number(val).toFixed(digits);
+};
 const cn = (...classes) => classes.filter(Boolean).join(' ');
+
+// ── Transform backend response (passthrough with safety) ─────────────
+function transformBackendData(raw) {
+  if (!raw) return null;
+  return raw;
+}
 
 // ── Severity / Label badges (replaces emojis) ──────────────────────────
 function SeverityBadge({ text }) {
@@ -57,7 +67,7 @@ function CustomTooltip({ active, payload, label }) {
     >
       <p className="text-sm font-extrabold text-slate-800 mb-1" style={{ fontFamily: 'Sora' }}>{label}</p>
       <p className="text-2xl font-black" style={{ fontFamily: 'Sora', color: payload[0]?.payload?.color || '#f97316' }}>
-        {payload[0]?.value?.toFixed(1)}%
+        {safeNum(payload[0]?.value, 1)}%
       </p>
     </motion.div>
   );
@@ -132,7 +142,10 @@ export default function App() {
       const response = await axios.post('http://localhost:5000/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      if (response.data?.data) setAnalysisData(response.data.data);
+      if (response.data?.data) {
+        console.log('🔥 BACKEND RESPONSE:', JSON.stringify(response.data.data, null, 2));
+        setAnalysisData(transformBackendData(response.data.data));
+      }
       else throw new Error('Invalid response');
     } catch (err) {
       setError(err.message || 'Analysis failed.');
@@ -162,13 +175,19 @@ export default function App() {
   ];
   const chartData = biasData.length ? biasData : defaultChartData;
 
-  const score1 = analysisData ? (Object.values(analysisData.with_sensitive.bias_report).reduce((a, c) => a + c.bias_score, 0) / Object.keys(analysisData.with_sensitive.bias_report).length).toFixed(2) : "0.59";
-  const score2 = analysisData ? (Object.values(analysisData.without_sensitive.bias_report).reduce((a, c) => a + c.bias_score, 0) / Object.keys(analysisData.without_sensitive.bias_report).length).toFixed(2) : "0.00";
-  const impactText = analysisData?.without_sensitive?.summary?.mitigation_impact || "Limited";
+  const score1 = analysisData?.with_sensitive?.summary?.overall_bias_score !== undefined 
+    ? safeNum(analysisData.with_sensitive.summary.overall_bias_score)
+    : safeNum(Object.values(analysisData?.with_sensitive?.bias_report || {}).reduce((a, c) => a + (c?.bias_score || 0), 0) / (Object.keys(analysisData?.with_sensitive?.bias_report || {}).length || 1));
 
-  const sensitiveColumns = analysisData ? Object.entries(analysisData.with_sensitive.bias_report).filter(([, r]) => r.type.includes('Sensitive')) : [];
-  const generalColumns = analysisData ? Object.entries(analysisData.with_sensitive.bias_report).filter(([, r]) => !r.type.includes('Sensitive')) : [];
-  const topInsights = analysisData ? Object.entries(analysisData.with_sensitive.bias_report).sort(([, a], [, b]) => b.bias_score - a.bias_score).slice(0, 2) : [];
+  const score2 = analysisData?.without_sensitive?.summary?.overall_bias_score !== undefined
+    ? safeNum(analysisData.without_sensitive.summary.overall_bias_score)
+    : safeNum(Object.values(analysisData?.without_sensitive?.bias_report || {}).reduce((a, c) => a + (c?.bias_score || 0), 0) / (Object.keys(analysisData?.without_sensitive?.bias_report || {}).length || 1));
+  const impactText = analysisData?.without_sensitive?.summary?.mitigation_impact || "Limited";
+  const biasReport = analysisData?.with_sensitive?.bias_report || {};
+
+  const sensitiveColumns = Object.entries(biasReport).filter(([, r]) => r?.type?.includes('Sensitive'));
+  const generalColumns = Object.entries(biasReport).filter(([, r]) => !r?.type?.includes('Sensitive'));
+  const topInsights = Object.entries(biasReport).sort(([, a], [, b]) => (b?.bias_score || 0) - (a?.bias_score || 0)).slice(0, 2);
 
   const lrData = analysisData?.models?.logistic_regression;
   const rfData = analysisData?.models?.random_forest;
@@ -176,9 +195,26 @@ export default function App() {
   const retData = analysisData?.models?.retrained;
 
   const extraModels = [
-    { name: "Logistic Regression", score: lrData ? lrData.avg_bias.toFixed(2) : "—", feature: lrData?.most_biased_feature || "N/A" },
-    { name: "Random Forest", score: rfData ? rfData.avg_bias.toFixed(2) : "—", feature: rfData?.most_biased_feature || "N/A" },
-    { name: "Retrained Model", score: retData ? retData.avg_bias.toFixed(2) : "—", feature: retData?.optimization || retData?.most_biased_feature || "N/A" },
+    {
+      name: "Logistic Regression",
+      score: lrData ? safeNum(lrData.avg_bias) : "—",
+      feature: lrData?.most_biased_feature || "N/A"
+    },
+    {
+      name: "Random Forest",
+      score: rfData ? safeNum(rfData.avg_bias) : "—",
+      feature: rfData?.most_biased_feature || "N/A"
+    },
+    {
+      name: "Mitigated Model",
+      score: mitData ? safeNum(mitData.avg_bias) : "—",
+      feature: mitData?.most_biased_feature || "N/A"
+    },
+    {
+      name: "Retrained Model",
+      score: retData ? safeNum(retData.avg_bias) : "—",
+      feature: retData?.optimization || retData?.most_biased_feature || "N/A"
+    },
   ];
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -225,10 +261,16 @@ export default function App() {
                       <div className="bg-orange-50 rounded-2xl p-5 border border-orange-100 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-500">Overall Bias</span>
-                          <SeverityBadge text={analysisData.with_sensitive.summary.overall_bias.includes('Moderate') ? 'Medium' : analysisData.with_sensitive.summary.overall_bias} />
+                          <SeverityBadge 
+                          text={
+                            (analysisData?.with_sensitive?.summary?.overall_bias || "Low").includes("Moderate")
+                              ? "Medium"
+                              : (analysisData?.with_sensitive?.summary?.overall_bias || "Low")
+                          }
+                        />
                         </div>
-                        <p className="text-sm text-slate-700 font-medium leading-relaxed">{analysisData.with_sensitive.summary.message}</p>
-                        <p className="text-xs text-slate-500 italic">{analysisData.with_sensitive.summary.reason}</p>
+                        <p className="text-sm text-slate-700 font-medium leading-relaxed">{analysisData?.with_sensitive?.summary?.message || "No summary available"}</p>
+                        <p className="text-xs text-slate-500 italic">{analysisData?.with_sensitive?.summary?.reason || ""}</p>
                       </div>
                     </section>
 
@@ -236,7 +278,7 @@ export default function App() {
                     <section>
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Dataset Distribution</h3>
                       <div className="space-y-3">
-                        {Object.entries(analysisData.data_bias).map(([cat, vals]) => (
+                        {Object.entries(analysisData?.data_bias || {}).map(([cat, vals]) => (
                           <div key={cat} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                             <p className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3">{cat.replace('_', ' ')}</p>
                             <div className="space-y-2">
@@ -251,7 +293,7 @@ export default function App() {
                                       className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full"
                                     />
                                   </div>
-                                  <span className="w-12 text-right text-slate-700 font-bold">{(pct * 100).toFixed(1)}%</span>
+                                  <span className="w-12 text-right text-slate-700 font-bold">{safeNum(pct * 100, 1)}%</span>
                                 </div>
                               ))}
                             </div>
@@ -262,51 +304,89 @@ export default function App() {
 
                     {/* 3. Bias Report With Sensitive */}
                     <section>
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Bias Report — With Sensitive</h3>
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Bias Report — With Sensitive</h3>
+                      <p className="text-[11px] text-slate-500 mb-4 font-medium leading-tight">Baseline audit: Analyzing the raw dataset with all features to identify existing algorithmic discrimination.</p>
                       <div className="space-y-3">
-                        {Object.entries(analysisData.with_sensitive.bias_report).map(([feature, report]) => (
-                          <div key={feature} className="rounded-xl border border-slate-100 p-4 hover:border-orange-200 transition-colors">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-extrabold text-slate-800 capitalize">{feature.replace('_', ' ')}</span>
-                              <div className="flex items-center gap-2">
-                                <TypeBadge text={report.type} />
-                                <SeverityBadge text={report.severity} />
+                          {Object.entries(analysisData?.with_sensitive?.bias_report || {}).map(([feature, report]) => (
+                            <div
+                              key={feature}
+                              className="rounded-xl border border-slate-100 p-4 hover:border-orange-200 transition-colors"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-extrabold text-slate-800 capitalize">
+                                  {feature.replace('_', ' ')}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <TypeBadge text={report.type} />
+                                  <SeverityBadge text={report.severity} />
+                                </div>
+                              </div>
+
+                              {/* Insight */}
+                              <p className="text-xs text-slate-600 font-medium mb-2">
+                                {report.insight}
+                              </p>
+
+                              {/* ✅ NEW FAIRNESS METRICS */}
+                              <div className="flex gap-2 mt-2 mb-3">
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                  report.demographic_parity > 0.3 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  DP: {safeNum(report.demographic_parity)}
+                                </span>
+
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                  report.equal_opportunity > 0.3 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  EO: {safeNum(report.equal_opportunity)}
+                                </span>
+
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                  report.disparate_impact < 0.8 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  DI: {safeNum(report.disparate_impact)}
+                                </span>
+                              </div>
+
+                              {/* Score bar */}
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-slate-400 font-bold">Score:</span>
+
+                                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(report?.bias_score || 0) * 100}%` }}
+                                    transition={{ duration: 1, ease: 'easeOut' }}
+                                    className="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full"
+                                  />
+                                </div>
+
+                                <span className="text-xs font-black text-slate-700">
+                                  {safeNum(report?.bias_score)}
+                                </span>
                               </div>
                             </div>
-                            <p className="text-xs text-slate-600 font-medium mb-3">{report.insight}</p>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-slate-400 font-bold">Score:</span>
-                              <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${report.bias_score * 100}%` }}
-                                  transition={{ duration: 1, ease: 'easeOut' }}
-                                  className="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full"
-                                />
-                              </div>
-                              <span className="text-xs font-black text-slate-700">{report.bias_score.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </section>
 
                     {/* 4. Mitigated Report */}
                     <section>
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Bias Report — After Mitigation</h3>
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Bias Report — After Mitigation</h3>
+                      <p className="text-[11px] text-slate-500 mb-4 font-medium leading-tight">Fairness audit: The results after applying the best mitigation strategy (Reweighting or Retraining) to the model.</p>
                       <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-100 mb-3">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-bold text-slate-500">Overall Bias</span>
                           <SeverityBadge text="Low" />
                         </div>
-                        <p className="text-sm text-slate-700 font-medium">{analysisData.without_sensitive.summary.message}</p>
+                        <p className="text-sm text-slate-700 font-medium">{analysisData?.without_sensitive?.summary?.message || "No summary"}</p>
                       </div>
                       <div className="space-y-2">
-                        {Object.entries(analysisData.without_sensitive.bias_report).map(([feature, report]) => (
+                        {Object.entries(analysisData?.without_sensitive?.bias_report || {}).map(([feature, report]) => (
                           <div key={feature} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50 transition-colors">
                             <span className="text-xs font-bold text-slate-600 capitalize">{feature.replace('_', ' ')}</span>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-emerald-600">{report.bias_score.toFixed(2)}</span>
+                              <span className="text-xs font-black text-emerald-600">{safeNum(report?.bias_score)}</span>
                               <LabelBadge text={report.label} />
                             </div>
                           </div>
@@ -318,7 +398,7 @@ export default function App() {
                     <section>
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Privacy Insight</h3>
                       <div className="bg-cyan-50 rounded-2xl p-5 border border-cyan-100">
-                        <p className="text-sm text-cyan-800 font-bold">{analysisData.privacy_insight}</p>
+                        <p className="text-sm text-cyan-800 font-bold">{analysisData?.privacy_insight || 'No privacy insight available.'}</p>
                       </div>
                     </section>
                   </>
@@ -419,7 +499,7 @@ export default function App() {
                 Categorical Distribution
               </h2>
             </div>
-            <div className="h-[420px]">
+            <div style={{ width: "100%", height: 420 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} barGap={16} margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
                   <defs>
@@ -457,9 +537,28 @@ export default function App() {
           </div>
         </FloatingCard>
 
-        {/* Model Comparison Grid */}
-        <div className="mb-12">
-          <div className="flex items-center gap-3 mb-8">
+        {/* ERROR MESSAGE */}
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="mt-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 font-bold"
+            >
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <p className="text-sm">{error}</p>
+              <button onClick={() => setError(null)} className="ml-auto p-1 hover:bg-red-100 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <section className="mt-12">
+          <div className="flex items-center gap-4 mb-8">
             <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}>
               <Eye className="w-8 h-8 text-cyan-500" />
             </motion.div>
@@ -531,22 +630,24 @@ export default function App() {
                   <div className="space-y-4">
                     <div>
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-1">Bias Score</p>
-                      <h4 className="text-5xl font-black text-cyan-600" style={{ fontFamily: 'Sora' }}>{mitData ? mitData.avg_bias.toFixed(2) : score2}</h4>
+                      <h4 className="text-5xl font-black text-cyan-600" style={{ fontFamily: 'Sora' }}>{extraModels[2].score}</h4>
                     </div>
                     <div className="pt-4 border-t border-slate-50">
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-2">Bias Features (Avg)</p>
                       <div className="flex flex-wrap gap-2">
-                        {mitData ? Object.keys(mitData.bias_report).slice(0, 3).map(f => (
-                          <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
-                            {f.replace('_', ' ')}: {mitData.bias_report[f].bias_score.toFixed(2)}
-                          </span>
-                        )) : analysisData ? Object.keys(analysisData.without_sensitive.bias_report).slice(0, 3).map(f => (
-                          <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
-                            {f.replace('_', ' ')}: {analysisData.without_sensitive.bias_report[f].bias_score.toFixed(2)}
-                          </span>
-                        )) : ["City: 0.00", "Age: 0.00"].map(f => (
-                          <span key={f} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-tighter">{f}</span>
-                        ))}
+                       {mitData ? Object.keys(mitData?.bias_report || {}).slice(0, 3).map(f => (
+                              <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
+                                {f.replace('_', ' ')}: {safeNum(mitData?.bias_report?.[f]?.bias_score)}
+                              </span>
+                            )) : analysisData ? Object.keys(analysisData?.without_sensitive?.bias_report || {}).slice(0, 3).map(f => (
+                              <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
+                                {f.replace('_', ' ')}: {safeNum(analysisData?.without_sensitive?.bias_report?.[f]?.bias_score)}
+                              </span>
+                            )) : ["City: 0.00", "Age: 0.00"].map(f => (
+                              <span key={f} className="px-2 py-1 bg-cyan-50 text-cyan-700 rounded-lg text-[10px] font-bold uppercase tracking-tighter">
+                                {f}
+                              </span>
+                            ))}
                       </div>
                     </div>
                   </div>
@@ -568,7 +669,7 @@ export default function App() {
                   <div className="space-y-4">
                     <div>
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-1">Bias Score</p>
-                      <h4 className="text-5xl font-black text-emerald-600" style={{ fontFamily: 'Sora' }}>{extraModels[2].score}</h4>
+                      <h4 className="text-5xl font-black text-emerald-600" style={{ fontFamily: 'Sora' }}>{extraModels[3].score}</h4>
                     </div>
                     <div className="pt-4 border-t border-slate-50">
                       <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase mb-1">Optimization</p>
@@ -579,7 +680,7 @@ export default function App() {
               </div>
             </FloatingCard>
           </div>
-        </div>
+        </section>
 
         {/* Bottom Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -660,7 +761,7 @@ export default function App() {
                             <div key={key} className="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2 mb-1 border border-red-100">
                               <Lock className="w-3 h-3 text-red-500 flex-shrink-0" />
                               <span className="text-xs font-bold text-red-700 capitalize">{key.replace('_', ' ')}</span>
-                              <span className="text-[9px] text-red-500 ml-auto font-black">{report.bias_score.toFixed(2)}</span>
+                              <span className="text-[9px] text-red-500 ml-auto font-black">{safeNum(report?.bias_score)}</span>
                             </div>
                           ))}
                         </div>
@@ -672,12 +773,12 @@ export default function App() {
                             <div key={key} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 mb-1 border border-slate-100">
                               <Unlock className="w-3 h-3 text-slate-400 flex-shrink-0" />
                               <span className="text-xs font-bold text-slate-600 capitalize">{key.replace('_', ' ')}</span>
-                              <span className="text-[9px] text-slate-500 ml-auto font-black">{report.bias_score.toFixed(2)}</span>
+                              <span className="text-[9px] text-slate-500 ml-auto font-black">{safeNum(report?.bias_score)}</span>
                             </div>
                           ))}
                         </div>
                       )}
-                      <p className="text-xs text-cyan-700 font-semibold italic mt-2">{analysisData.privacy_insight}</p>
+                      <p className="text-xs text-cyan-700 font-semibold italic mt-2">{analysisData?.privacy_insight || ''}</p>
                     </div>
                   ) : (
                     <p className="text-slate-600 font-medium leading-relaxed" style={{ fontFamily: 'Manrope' }}>

@@ -1,0 +1,116 @@
+# ⚖️ Bias-Detect Auditor: Technical Documentation
+
+## 1. Executive Summary
+The **Bias-Detect Auditor** is a full-stack algorithmic fairness platform designed to identify, analyze, and mitigate bias in machine learning datasets. It transforms raw, "dirty" data into an audited, fair model through a multi-stage automated pipeline.
+
+---
+
+## 2. System Architecture & Data Flow
+
+### **High-Level System Flow**
+```mermaid
+graph TD
+    A[User: Upload CSV] --> B[React Frontend]
+    B --> C[Node.js Proxy Server]
+    C --> D[Python AI Service]
+    
+    subgraph "AI Service (The Brain)"
+    D --> E[app.py: Data Prep & Training]
+    E --> F[bias.py: Fairness Audit]
+    F --> G[app.py: Mitigation Strategies]
+    G --> H[Final JSON Result]
+    end
+    
+    H --> C
+    C --> B
+    B --> I[Interactive Dashboard]
+```
+
+### **Internal Python Pipeline (Detailed)**
+```mermaid
+graph LR
+    A[Upload CSV] --> B[Agnostic Cleaning]
+    B --> C[Baseline Audit]
+    
+    subgraph "With Sensitive Data"
+    C --> D[Logistic Regression]
+    C --> E[Random Forest]
+    end
+    
+    D & E --> F[Identify Biased Features]
+    
+    subgraph "The Mitigation Duel"
+    F --> G[Reweighting]
+    F --> H[Retraining / Dropping]
+    end
+    
+    subgraph "Without Sensitive Data"
+    G & H --> I[Best Model Selection]
+    end
+    
+    I --> J[Final Dashboard Report]
+```
+
+---
+
+## 3. The "Brain" Division: app.py vs. bias.py
+
+The AI service is split into two specialized modules to separate the "Modeling" from the "Auditing."
+
+### **A. app.py (The Operational Manager)**
+This file handles the **Machine Learning Lifecycle**.
+*   **`prepare_agnostic_df()`**: Cleans "random" CSVs by auto-dropping unique IDs and PII (Names/Emails).
+*   **`get_best_target()`**: Automatically guesses which column is the "Goal" (Target) of the dataset.
+*   **`encode_for_training()`**: Converts text into numbers so the math models can process them.
+*   **`train_and_audit()`**: The core wrapper that trains a model (Logistic Regression or Random Forest) and then sends the results to `bias.py` for inspection.
+*   **The Mitigation Loop**: Orchestrates the "competition" between **Reweighting** (adjusting row importance) and **Retraining** (deleting biased features).
+
+### **B. bias.py (The Fairness Auditor)**
+This file handles the **Mathematical Ethics**. It does not train models; it only judges their outcomes.
+*   **`demographic_parity()`**: Measures the "Equality Gap" between groups.
+*   **`disparate_impact()`**: Calculates the "Fairness Ratio" (ensuring a minority group gets at least 80% of the majority group's success rate).
+*   **`detect_bias_all_columns()`**: Scans every column in the dataset to find hidden discrimination patterns.
+*   **`get_bias_insight()`**: Translates complex math into human-readable text (e.g., *"Group A is favored over Group B"*).
+
+---
+
+## 4. Key Techniques & Why They are Used
+
+### **1. Agnostic Target Detection**
+*   **Why**: To work on any "random" CSV without the user needing to code.
+*   **Technique**: It uses keyword matching and cardinality analysis to pick the most likely prediction target.
+
+### **2. Median-Split (Regression to Classification)**
+*   **Why**: Fairness metrics like Disparate Impact require a "Pass/Fail" outcome. 
+*   **Technique**: If the data is a number (like Sales), we split it at the median. High values = 1, Low values = 0.
+
+### **3. Reweighting (Mitigation Strategy A)**
+*   **Why**: To fix bias without losing data.
+*   **Technique**: It gives higher "weights" to rows representing disadvantaged groups, forcing the model to pay more attention to them during training.
+
+### **4. Feature Dropping (Mitigation Strategy B)**
+*   **Why**: To stop "Proxy Bias."
+*   **Technique**: If a column like "Gender" is the source of bias, we physically delete it. The model becomes "blind" to the sensitive attribute.
+
+---
+
+## 5. Performance & Fairness Metrics
+
+| Metric | Simple Definition | Why we use it |
+| :--- | :--- | :--- |
+| **Accuracy** | Total correct guesses. | To ensure the model is still smart while being fair. |
+| **F1-Score** | Balance between precision and recall. | To ensure the model isn't just guessing the majority value. |
+| **Bias Score** | Average of fairness violations (0 to 1). | To provide a single "Grade" for the model's ethics. |
+| **Demographic Parity** | The gap in success rates between groups. | To ensure equal outcomes for everyone. |
+| **Disparate Impact** | The ratio of success (The 80% Rule). | To detect systemic discrimination against minorities. |
+
+---
+
+## 6. How Data Travels (The Lifecycle)
+1.  **Ingestion**: Raw CSV enters the system.
+2.  **Privacy Shield**: IDs and PII are stripped.
+3.  **The Baseline**: A "dirty" model is trained to find the original bias.
+4.  **The Diagnosis**: `bias.py` identifies the "Worst Offenders" (the features causing the most bias).
+5.  **The Healing**: `app.py` runs Reweighting and Retraining fixes simultaneously.
+6.  **The Selection**: The system compares the two fixes and picks the one with the lowest bias and highest accuracy.
+7.  **Delivery**: The dashboard renders the "Before vs After" results with an **Impact %** (The ROI of fairness).
