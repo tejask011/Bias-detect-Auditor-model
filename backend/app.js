@@ -3,7 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const axios = require("axios");
 const path = require("path");
-const GEMINI_API_KEY = "AIzaSyCW0jTmmyzu-P7-Pdix4jB2_8ACyfqa7bM";
+const GEMINI_API_KEY = "api key here";
 
 const app = express();
 app.use(cors());
