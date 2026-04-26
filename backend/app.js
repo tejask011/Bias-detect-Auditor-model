@@ -3,6 +3,7 @@ const cors = require("cors");
 const multer = require("multer");
 const axios = require("axios");
 const path = require("path");
+const GEMINI_API_KEY = "AIzaSyCW0jTmmyzu-P7-Pdix4jB2_8ACyfqa7bM";
 
 const app = express();
 app.use(cors());
@@ -59,6 +60,54 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     res.status(500).json({
       error: error.response?.data?.error || error.message || "Server error",
     });
+  }
+});
+
+// ✨ Gemini Summary Route
+app.post("/summary", async (req, res) => {
+  try {
+    const { analysisData } = req.body;
+    if (!analysisData) return res.status(400).json({ error: "No analysis data provided" });
+
+    const simplifiedData = {
+      overall_bias: analysisData.with_sensitive?.summary?.overall_bias,
+      overall_bias_score: analysisData.with_sensitive?.summary?.overall_bias_score,
+      mitigation_impact: analysisData.without_sensitive?.summary?.mitigation_impact,
+      top_biased_features: Object.entries(analysisData.with_sensitive?.bias_report || {})
+        .sort(([, a], [, b]) => (b.bias_score || 0) - (a.bias_score || 0))
+        .slice(0, 3)
+        .map(([key, val]) => ({ feature: key, score: val.bias_score, insight: val.insight })),
+      privacy_insight: analysisData.privacy_insight
+    };
+
+    const prompt = `
+      You are an AI Fairness Expert. Analyze the following bias detection report and provide a comprehensive, professional, and easy-to-understand summary.
+      
+      REPORT DATA:
+      ${JSON.stringify(simplifiedData, null, 2)}
+      
+      Please include:
+      1. An executive summary of the overall fairness of the dataset.
+      2. A breakdown of the most significant biases found.
+      3. An explanation of how the mitigation strategy improved the model.
+      4. Actionable recommendations for the data science team.
+      
+      Keep the tone professional yet encouraging. Use markdown formatting for better readability.
+    `;
+
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{ parts: [{ text: prompt }] }]
+      }
+    );
+
+    const generatedText = response.data.candidates[0].content.parts[0].text;
+    res.json({ summary: generatedText });
+
+  } catch (error) {
+    console.error("❌ Gemini Error:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to generate AI summary" });
   }
 });
 

@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Upload, LogOut, AlertTriangle, CheckCircle2, TrendingUp, Shield, Zap, Eye, Activity, Info, X, FileText, Lock, Unlock, CircleAlert, CircleCheck, CircleMinus, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { Upload, LogOut, AlertTriangle, CheckCircle2, TrendingUp, Shield, Zap, Eye, Activity, Info, X, FileText, Lock, Unlock, CircleAlert, CircleCheck, CircleMinus, ShieldAlert, TriangleAlert, Sparkles } from 'lucide-react';
 import axios from 'axios';
+import GeminiSummary from './component/GeminiSummary';
 
 const safeNum = (val, digits = 2) => {
   if (val === undefined || val === null || isNaN(val)) return "0.00";
@@ -127,6 +128,7 @@ export default function App() {
   const [analysisData, setAnalysisData] = useState(null);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [geminiOpen, setGeminiOpen] = useState(false);
 
   const handleFileChange = (e) => {
     if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
@@ -431,6 +433,17 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setGeminiOpen(true)}
+              disabled={!analysisData}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-2xl font-bold shadow-lg shadow-orange-500/20 hover:brightness-110 transition-all disabled:opacity-50 disabled:grayscale"
+              style={{ fontFamily: 'Manrope' }}
+            >
+              <Sparkles className="w-5 h-5" />
+              AI Summary
+            </motion.button>
             <motion.button
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
@@ -791,6 +804,11 @@ export default function App() {
           </div>
         </div>
       </div>
+      <GeminiSummary
+        isOpen={geminiOpen}
+        onClose={() => setGeminiOpen(false)}
+        analysisData={analysisData}
+      />
     </div>
   );
 }
