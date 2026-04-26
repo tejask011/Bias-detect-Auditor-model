@@ -2,7 +2,7 @@
     import { getAuth } from "firebase/auth";
 
     const firebaseConfig = {
-    apiKey: "AIzaSyDqm3OA71BDphGIT1I9NpPJMEEg531xWMw",
+    apiKey: your api here",
     authDomain: "ai-fairness-auditor.firebaseapp.com",
     projectId: "ai-fairness-auditor",
     storageBucket: "ai-fairness-auditor.firebasestorage.app",
