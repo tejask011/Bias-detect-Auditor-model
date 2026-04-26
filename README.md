@@ -124,8 +124,9 @@ This approach addresses "Proxy Bias" by identifying and removing features that s
 
 -----------
 <h2>prerequiste</h2>
-<p>add your both api keys firebase and gemini api key 
-1.gemini api key at node.js 
+<p>add your both api keys firebase and gemini api key </p></br>
+
+1.gemini api key at node.js </br>
 2.firebase at firebase.js 
   
 </p>
