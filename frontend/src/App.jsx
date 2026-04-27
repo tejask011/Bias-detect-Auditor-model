@@ -135,7 +135,8 @@ export default function App() {
     if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
   };
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (e) => {
+     if (e) e.preventDefault();  
     if (!selectedFile) return;
     setIsAnalyzing(true);
     setError(null);
@@ -450,6 +451,7 @@ finally {
           </div>
           <div className="flex items-center gap-3">
             <motion.button
+              type="button" 
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => setGeminiOpen(true)}
