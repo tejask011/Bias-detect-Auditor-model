@@ -149,6 +149,11 @@ try {
       timeout: 120000,
     }
   );
+  if (response.data?.data) {
+  setAnalysisData(transformBackendData(response.data.data));
+} else {
+  throw new Error("Invalid response");
+}
 } catch (error) {
   console.log("FULL ERROR:", error);
 
@@ -161,6 +166,9 @@ try {
   } else {
     setError(error.message);
   }
+}
+finally {
+  setIsAnalyzing(false);
 }
   };
 
