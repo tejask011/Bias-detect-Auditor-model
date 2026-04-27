@@ -44,6 +44,17 @@ def prepare_agnostic_df(df):
             df[col] = df[col].fillna("Unknown")
     return df
 
+@app.after_request
+def add_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response
+
+@app.route('/analyze', methods=['OPTIONS'])
+def options():
+    return '', 200
+
 def get_best_target(df):
     keywords = ["target", "label", "class", "output", "y", "status", "result", "cases", "pred", "diagnosis"]
     for c in df.columns:
@@ -63,6 +74,16 @@ def encode_for_training(df, target_col):
             le = LabelEncoder()
             X_enc[col] = le.fit_transform(X[col].astype(str))
     return X_enc
+
+def safe_read_csv(file):
+    encodings = ['utf-8', 'latin1', 'utf-16']
+    for enc in encodings:
+        try:
+            file.seek(0)
+            return pd.read_csv(file, encoding=enc)
+        except:
+            continue
+    raise Exception("Unsupported file encoding")
 
 def avg_bias_score(bias_report):
     if not bias_report: return 0
@@ -111,7 +132,7 @@ def analyze():
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
-        df_raw = pd.read_csv(file)
+        df_raw = safe_read_csv(file)
         df = prepare_agnostic_df(df_raw)
         target_col = get_best_target(df)
         

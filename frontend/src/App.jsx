@@ -143,21 +143,24 @@ export default function App() {
     formData.append('file', selectedFile);
 try {
   const response = await axios.post(
-    'https://ai-service-1025621130719.asia-south1.run.app/analyze',
-    formData
+    "https://ai-service-1025621130719.asia-south1.run.app/analyze",
+    formData,
+    {
+      timeout: 60000,
+    }
   );
+} catch (error) {
+  console.log("FULL ERROR:", error);
 
-  console.log("🔥 FULL RESPONSE:", response.data);
-
-  if (response.data) {
-    setAnalysisData(transformBackendData(response.data));
+  if (error.response) {
+    console.log("BACKEND ERROR:", error.response.data);
+    setError(error.response.data.error || "Server error");
+  } else if (error.request) {
+    console.log("NO RESPONSE RECEIVED");
+    setError("No response from server");
   } else {
-    throw new Error("Invalid response");
+    setError(error.message);
   }
-
-} catch (err) {
-  console.log("ERROR:", err.response || err.message);
-  setError(err.message || 'Analysis failed');
 }
   };
 
