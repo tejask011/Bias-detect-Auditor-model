@@ -136,6 +136,7 @@ export default function App() {
   };
 
   const handleAnalyze = async (e) => {
+    console.log("🔥 HANDLE ANALYZE CALLED");
      if (e) e.preventDefault();  
     if (!selectedFile) return;
     setIsAnalyzing(true);
