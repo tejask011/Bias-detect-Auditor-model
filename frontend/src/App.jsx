@@ -137,42 +137,51 @@ export default function App() {
 
   const handleAnalyze = async (e) => {
     console.log("🔥 HANDLE ANALYZE CALLED");
-     if (e) e.preventDefault();  
+    if (e) e.preventDefault();  
     if (!selectedFile) return;
     setIsAnalyzing(true);
     setError(null);
     const formData = new FormData();
     formData.append('file', selectedFile);
-try {
-  const response = await axios.post(
-    "https://ai-service-1025621130719.asia-south1.run.app/analyze",
-    formData,
-    {
-      timeout: 120000,
-    }
-  );
-  if (response.data?.data) {
-  setAnalysisData(transformBackendData(response.data.data));
-} else {
-  throw new Error("Invalid response");
-}
-} catch (error) {
-  console.log("FULL ERROR:", error);
+    
+    // Base URL from environment variable or fallback to production URL
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ai-service-1025621130719.asia-south1.run.app";
+    const endpoint = BASE_URL.includes("run.app") ? "/analyze" : "/upload";
 
-  if (error.response) {
-    console.log("BACKEND ERROR:", error.response.data);
-    setError(error.response.data.error || "Server error");
-  } else if (error.request) {
-    console.log("NO RESPONSE RECEIVED");
-    setError("No response from server");
-  } else {
-    setError(error.message);
-  }
-}
-finally {
-  setIsAnalyzing(false);
-}
+    try {
+      const response = await axios.post(
+        `${BASE_URL}${endpoint}`,
+        formData,
+        {
+          timeout: 120000,
+        }
+      );
+      
+      // Handle both direct Python service response and Node wrapper response
+      const result = response.data?.data || response.data;
+      
+      if (result && (result.with_sensitive || result.data_bias)) {
+        setAnalysisData(transformBackendData(result));
+      } else {
+        console.error("Invalid response structure:", response.data);
+        throw new Error("Invalid response from server");
+      }
+    } catch (error) {
+      console.log("FULL ERROR:", error);
+      if (error.response) {
+        console.log("BACKEND ERROR:", error.response.data);
+        setError(error.response.data.error || "Server error");
+      } else if (error.request) {
+        console.log("NO RESPONSE RECEIVED");
+        setError("No response from server. Check if the backend is running and CORS is allowed.");
+      } else {
+        setError(error.message);
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
+
 
   // ── Derived data ──
   const getChartData = useCallback(() => {

@@ -15,19 +15,22 @@ export default function GeminiSummary({ isOpen, onClose, analysisData }) {
     setLoading(true);
     setError(null);
 
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
     try {
-      const response = await axios.post('http://localhost:5000/summary', {
+      const response = await axios.post(`${BASE_URL}/summary`, {
         analysisData
       });
 
       setSummary(response.data.summary);
     } catch (err) {
       console.error('Summary Error:', err);
-      setError('Failed to generate summary. Please ensure the backend is running.');
+      setError('Failed to generate summary. Please ensure the backend is running and GEMINI_API_KEY is set.');
     } finally {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     if (isOpen && !summary && analysisData) {
