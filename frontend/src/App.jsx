@@ -151,8 +151,9 @@ export default function App() {
       console.warn("⚠️ VITE_API_BASE_URL is not set! Using fallback AI Service URL.");
     }
 
-    const API_URL = BASE_URL || "https://ai-service-1025621130719.asia-south1.run.app";
-    const endpoint = API_URL.includes("run.app") && !API_URL.includes("backend") ? "/analyze" : "/upload";
+    const API_URL = import.meta.env.VITE_API_BASE_URL || "https://backend-service-1025621130719.asia-south1.run.app";
+    const endpoint = "/upload";
+
 
     console.log(`🚀 Sending request to: ${API_URL}${endpoint}`);
 

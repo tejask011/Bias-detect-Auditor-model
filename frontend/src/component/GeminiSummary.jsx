@@ -15,7 +15,8 @@ export default function GeminiSummary({ isOpen, onClose, analysisData }) {
     setLoading(true);
     setError(null);
 
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://backend-service-1025621130719.asia-south1.run.app";
+
 
     try {
       const response = await axios.post(`${BASE_URL}/summary`, {

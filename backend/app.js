@@ -122,14 +122,24 @@ app.post("/summary", async (req, res) => {
     );
 
 
-    const generatedText = response.data.candidates[0].content.parts[0].text;
+    const generatedText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!generatedText) {
+      console.error("❌ Invalid Gemini response:", JSON.stringify(response.data));
+      throw new Error("AI failed to generate a summary. Check API key and quota.");
+    }
+
     res.json({ summary: generatedText });
 
   } catch (error) {
     console.error("❌ Gemini Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to generate AI summary" });
+    res.status(500).json({ 
+      error: "Failed to generate AI summary", 
+      details: error.response?.data?.error?.message || error.message 
+    });
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
