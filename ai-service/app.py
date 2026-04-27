@@ -14,7 +14,11 @@ from sklearn.preprocessing import StandardScaler
 from bias import detect_bias_all_columns, most_biased_feature, get_categorical_columns
 from scipy.stats import chi2_contingency
 
+from flask_cors import CORS
+
+
 app = Flask(__name__)
+CORS(app)
 
 PII_COLUMNS = ["name", "email", "phone", "aadhaar", "id", "userid", "address", "ssn", "passport", "ip"]
 SENSITIVE_KEYWORDS = ["gender", "sex", "race", "ethnicity", "age", "caste", "religion", "nationality", "disability"]
@@ -103,11 +107,11 @@ def train_and_audit(clf, xt, yt, xte, yte, audit_df, weights=None):
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
-        data = request.get_json()
-        file_path = data.get("file_path")
-        if not file_path or not os.path.exists(file_path): return jsonify({"error": "File not found"}), 404
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-        df_raw = pd.read_csv(file_path)
+        file = request.files['file']
+        df_raw = pd.read_csv(file)
         df = prepare_agnostic_df(df_raw)
         target_col = get_best_target(df)
         
@@ -230,4 +234,5 @@ def analyze():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)

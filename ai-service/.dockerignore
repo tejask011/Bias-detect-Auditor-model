@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.env/
+
+# Git files
+.git/
+.gitignore
+
+# Node (if any accidental files)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# VS Code / IDE
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp

@@ -5,6 +5,7 @@ import { Upload, LogOut, AlertTriangle, CheckCircle2, TrendingUp, Shield, Zap, E
 import axios from 'axios';
 import GeminiSummary from './component/GeminiSummary';
 
+
 const safeNum = (val, digits = 2) => {
   if (val === undefined || val === null || isNaN(val)) return "0.00";
   return Number(val).toFixed(digits);
@@ -140,20 +141,24 @@ export default function App() {
     setError(null);
     const formData = new FormData();
     formData.append('file', selectedFile);
-    try {
-      const response = await axios.post('http://localhost:5000/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      if (response.data?.data) {
-        console.log('🔥 BACKEND RESPONSE:', JSON.stringify(response.data.data, null, 2));
-        setAnalysisData(transformBackendData(response.data.data));
-      }
-      else throw new Error('Invalid response');
-    } catch (err) {
-      setError(err.message || 'Analysis failed.');
-    } finally {
-      setIsAnalyzing(false);
-    }
+try {
+  const response = await axios.post(
+    'https://ai-service-1025621130719.asia-south1.run.app/analyze',
+    formData
+  );
+
+  console.log("🔥 FULL RESPONSE:", response.data);
+
+  if (response.data) {
+    setAnalysisData(transformBackendData(response.data));
+  } else {
+    throw new Error("Invalid response");
+  }
+
+} catch (err) {
+  console.log("ERROR:", err.response || err.message);
+  setError(err.message || 'Analysis failed');
+}
   };
 
   // ── Derived data ──
