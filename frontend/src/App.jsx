@@ -146,7 +146,7 @@ try {
     "https://ai-service-1025621130719.asia-south1.run.app/analyze",
     formData,
     {
-      timeout: 60000,
+      timeout: 120000,
     }
   );
 } catch (error) {
