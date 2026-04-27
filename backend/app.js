@@ -1,9 +1,18 @@
+require("dotenv").config();
 const express = require("express");
+
 const cors = require("cors");
 const multer = require("multer");
 const axios = require("axios");
 const path = require("path");
-const GEMINI_API_KEY = "api key here";
+const fs = require("fs");
+const FormData = require("form-data");
+
+// Configuration from environment variables
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyD6b5AUVYTi_rot2nFp86xistNQOcrnIVk";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "https://ai-service-1025621130719.asia-south1.run.app/analyze";
+const PORT = process.env.PORT || 5000;
+
 
 const app = express();
 app.use(cors());
@@ -12,7 +21,11 @@ app.use(express.json());
 // 📁 storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    const uploadDir = "uploads/";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
@@ -28,20 +41,26 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Build absolute path to the uploaded file
-    const filePath = path.resolve(req.file.path);
+    console.log(`📂 File uploaded locally: ${req.file.path}`);
+    console.log(`🔄 Forwarding to Python AI service at ${AI_SERVICE_URL}...`);
 
-    console.log(`📂 File uploaded: ${filePath}`);
-    console.log(`🔄 Forwarding to Python AI service...`);
+    // Create FormData to forward the file
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(req.file.path));
 
-    // Call the Python Flask service at port 5001
-    const pythonResponse = await axios.post("http://localhost:5001/analyze", {
-      file_path: filePath,
-    }, {
-      timeout: 30000, // 30s timeout for large datasets
+    const pythonResponse = await axios.post(AI_SERVICE_URL, formData, {
+      headers: {
+        ...formData.getHeaders(),
+      },
+      timeout: 120000, // 120s timeout for large datasets
     });
 
     console.log(`✅ Analysis complete`);
+
+    // Clean up the local file after forwarding
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error("❌ Error deleting temp file:", err);
+    });
 
     res.json({
       message: "File processed successfully",
@@ -49,11 +68,11 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Analysis error:", error.message);
+    console.error("❌ Analysis error:", error.response?.data || error.message);
 
     if (error.code === "ECONNREFUSED") {
       return res.status(503).json({
-        error: "Python AI service is not running. Start it with: cd ai-service && python app.py",
+        error: "AI service is not reachable. Check AI_SERVICE_URL.",
       });
     }
 
@@ -96,11 +115,12 @@ app.post("/summary", async (req, res) => {
     `;
 
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         contents: [{ parts: [{ text: prompt }] }]
       }
     );
+
 
     const generatedText = response.data.candidates[0].content.parts[0].text;
     res.json({ summary: generatedText });
@@ -111,7 +131,8 @@ app.post("/summary", async (req, res) => {
   }
 });
 
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
-  console.log("Make sure Python AI service is running on port 5001");
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`AI Service URL: ${AI_SERVICE_URL}`);
 });
+

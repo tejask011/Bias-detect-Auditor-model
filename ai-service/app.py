@@ -18,7 +18,7 @@ from flask_cors import CORS
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 PII_COLUMNS = ["name", "email", "phone", "aadhaar", "id", "userid", "address", "ssn", "passport", "ip"]
 SENSITIVE_KEYWORDS = ["gender", "sex", "race", "ethnicity", "age", "caste", "religion", "nationality", "disability"]
@@ -44,14 +44,8 @@ def prepare_agnostic_df(df):
             df[col] = df[col].fillna("Unknown")
     return df
 
-@app.after_request
-def add_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    return response
-
 @app.route('/analyze', methods=['OPTIONS'])
+
 def options():
     return '', 200
 

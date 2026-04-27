@@ -144,21 +144,34 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     
-    // Base URL from environment variable or fallback to production URL
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ai-service-1025621130719.asia-south1.run.app";
-    const endpoint = BASE_URL.includes("run.app") ? "/analyze" : "/upload";
+    // Base URL from environment variable
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    
+    if (!BASE_URL) {
+      console.warn("⚠️ VITE_API_BASE_URL is not set! Using fallback AI Service URL.");
+    }
+
+    const API_URL = BASE_URL || "https://ai-service-1025621130719.asia-south1.run.app";
+    const endpoint = API_URL.includes("run.app") && !API_URL.includes("backend") ? "/analyze" : "/upload";
+
+    console.log(`🚀 Sending request to: ${API_URL}${endpoint}`);
 
     try {
       const response = await axios.post(
-        `${BASE_URL}${endpoint}`,
+        `${API_URL}${endpoint}`,
         formData,
         {
           timeout: 120000,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          }
         }
       );
       
-      // Handle both direct Python service response and Node wrapper response
+      console.log("✅ Response received:", response.status);
+      
       const result = response.data?.data || response.data;
+
       
       if (result && (result.with_sensitive || result.data_bias)) {
         setAnalysisData(transformBackendData(result));
