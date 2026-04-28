@@ -24,12 +24,18 @@ export default function GeminiSummary({ isOpen, onClose, analysisData }) {
       });
 
       setSummary(response.data.summary);
-    } catch (err) {
-      console.error('Summary Error:', err);
-      setError('Failed to generate summary. Please ensure the backend is running and GEMINI_API_KEY is set.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) {
+  console.log("🔥 FULL ERROR:", error);
+
+  if (error.response) {
+    console.log("🔥 BACKEND ERROR:", error.response.data);
+    setError(JSON.stringify(error.response.data, null, 2));
+  } else if (error.request) {
+    setError("No response from server");
+  } else {
+    setError(error.message);
+  }
+}
   };
 
 
@@ -104,7 +110,7 @@ export default function GeminiSummary({ isOpen, onClose, analysisData }) {
                   </motion.div>
                   <div>
                     <h3 className="text-xl font-bold text-slate-800">Generating Insightful Summary...</h3>
-                    <p className="text-slate-500">Gemini is analyzing your fairness report data.</p>
+                    <p className="text-slate-500">Gemini is analyzing your fairness report data.[we are using free gemini due to high traffic it may crash]</p>
                   </div>
                 </div>
               ) : error ? (
