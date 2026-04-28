@@ -9,7 +9,7 @@ const fs = require("fs");
 const FormData = require("form-data");
 
 // Configuration from environment variables
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyD6b5AUVYTi_rot2nFp86xistNQOcrnIVk";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDQeGK8A9_VW9NN8nyKjuJpHpSNDStJvcM";
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "https://ai-service-1025621130719.asia-south1.run.app/analyze";
 const PORT = process.env.PORT || 5000;
 
@@ -114,16 +114,20 @@ app.post("/summary", async (req, res) => {
       Keep the tone professional yet encouraging. Use markdown formatting for better readability.
     `;
 
+    console.log("🔑 GEMINI KEY USED:", GEMINI_API_KEY);
+     
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         contents: [{ parts: [{ text: prompt }] }]
+        
       }
+      
     );
 
 
     const generatedText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
     if (!generatedText) {
       console.error("❌ Invalid Gemini response:", JSON.stringify(response.data));
       throw new Error("AI failed to generate a summary. Check API key and quota.");
@@ -132,12 +136,14 @@ app.post("/summary", async (req, res) => {
     res.json({ summary: generatedText });
 
   } catch (error) {
-    console.error("❌ Gemini Error:", error.response?.data || error.message);
-    res.status(500).json({ 
-      error: "Failed to generate AI summary", 
-      details: error.response?.data?.error?.message || error.message 
-    });
-  }
+  console.error("❌ FULL GEMINI ERROR:");
+  console.error(JSON.stringify(error.response?.data, null, 2));
+
+  res.status(500).json({
+    error: "Failed to generate AI summary",
+    full_error: error.response?.data || error.message
+  });
+}
 });
 
 
